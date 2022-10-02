@@ -2,7 +2,7 @@
 #include <WiFi.h>
 #include <Adafruit_AHT10.h>
 
-#include <VirtualWire.h>
+//#include <VirtualWire.h>
 
 #include "config.h"
 const char* ssid = WIFI;
@@ -35,6 +35,7 @@ ACS712  ACS9(14, 5.0, 4095, 66);
 //  ACS712  ACS(25, 3.3, 4095, 185);
 */
 
+/*
 float sensitivity = 66.0f; // Uncomment this for 30A board, Output sensitivity 66mV/A
 int adcValue= 0;
 const int currentPin = 36;
@@ -44,7 +45,13 @@ int ARDUINO_REF = 3300;
 int offsetVoltage = ARDUINO_REF / 2;
 float errorCorrectionAmp = 0.0f; // Set this to use a correcting offset on readings, e.g. -0.15f;
 const float alpha = 0.1f; // Can vary this value between 0.1 and 0.9, changes filter impact
+*/
+const int currentPin = 36;
+int ARDUINO_REF = 3300;
 
+float adcValue = 0.0f;
+float mV = 0.0f;
+float eCurrent = 0.0f;
 
 
 const int currentSwitchPin[8] = {12, 14, 27, 25, 33, 26, 23, 32};
@@ -89,6 +96,7 @@ void setup() {
     digitalWrite(currentSwitchPin[i], LOW);
     pinMode(RelayPin[i], OUTPUT);
     digitalWrite(RelayPin[i], LOW);
+    currentResults[i] = 0.0f;
   }
   for (int i = 0; i < 9; i++) {
     pinMode(RelayPin[i], OUTPUT);
@@ -260,14 +268,53 @@ void readCurrents(){
     Serial.println("Read: ");
     Serial.println(i);
     digitalWrite(currentSwitchPin[i], HIGH);
-    currentResults[i] = doReadAlphaFilter();
+    doReadAlphaFilter(i);
     digitalWrite(currentSwitchPin[i], LOW);
     Serial.println();
   }
 }
 
+int getVPP() {
+  int maxValue = 0;
+
+  int c=250;
+  while(c-->0) {
+       int readValue = analogRead(currentPin);
+
+       if (readValue > maxValue)
+           maxValue = readValue;
+   }
+
+   return maxValue;
+ }
+
 // Reading and apply software correction
-float doReadAlphaFilter() {
+void doReadAlphaFilter(int i) {
+   adcValue = getVPP();
+    mV = (adcValue / 4095.0f) * 5000.0f;              // (adcValue / 1024.0f) * 5000.0f; // mV
+    eCurrent = ((mV - 1650.0f) / 0.66f);  // 1650 = voltageRef/2, ACS712 5A=1.85f, 20A=1.0f, 30A=0.66f
+    //amp = eCurrent / 141.42f;           // eCurrent/(sqrt(2); // sqrt(2) = 1.4142
+
+    // Apply alpha filter
+    currentResults[i] = 0.1f * (eCurrent / 141.42f) + 0.9f * currentResults[i]; // alpha = 0.1f, 0.9f = (1-alpha)
+
+    // Manual fixup of readings
+    if (currentResults[i]<=1.5)
+      currentResults[i] = currentResults[i] * 0.93;
+    if (currentResults[i]>1.5 && currentResults[i]<=2.5)
+      currentResults[i] = currentResults[i] * 0.94;
+    else if (currentResults[i]>2.5 && currentResults[i]<=8.0)
+      currentResults[i] = currentResults[i] * 0.97;
+    else if (currentResults[i]>8.0 && currentResults[i]<=10.0)
+      currentResults[i] = currentResults[i] * 0.98;
+    else
+      currentResults[i] = currentResults[i] * 0.985;
+
+
+   Serial.println(currentResults[i]);
+}
+/*
+float doReadAlphaFilterDC() {
    float average = 0.0f, previousValue = 0.0f;
 
    analogRead(currentPin); // Dummy read, doesn't help
@@ -289,7 +336,7 @@ float doReadAlphaFilter() {
    
    return result; 
 }
-
+*/
 void sendData(){
   sensors_event_t humidity, temp;
     aht.getEvent(&humidity, &temp);// populate temp and humidity objects with fresh data
