@@ -82,7 +82,7 @@ WiFiClient client;
 
 Adafruit_AHT10 aht;
 
-//boolean relay = false;
+boolean relay = false;
 
 
 
@@ -349,6 +349,7 @@ void sendData(){
   JsonObject dat = doc.createNestedObject("data");
   dat["fuseBoxTemp"] = temp.temperature;
   dat["fuseBoxHum"] = humidity.relative_humidity;
+  dat["fuseBoxFan"] = relay;
   dat["light0"] = currentResults[0];
   dat["light1"] = currentResults[1];
   dat["light2"] = currentResults[2];
@@ -400,7 +401,11 @@ void getData(String input){
   
   countNoIdea = 0;
 
-  int id = doc["ID"]; // 1000
+  int id = doc["ID"]; //2
+  if (id != 2){
+    Serial.println("message is brodcast");
+    return;
+  }
   boolean pulse[10];
   pulse[0] = doc["data"]["pulse0"];
   pulse[1] = doc["data"]["pulse1"];
@@ -413,12 +418,22 @@ void getData(String input){
   pulse[8] = doc["data"]["pulse8"];
 
 
-  for (int i = 0; i < 9; i++){
+  //atm turns all the lights in sequence not at the same time (cool effect?) 
+  for (int i = 1; i < 9; i++){
     if(pulse[i]){
       digitalWrite(RelayPin[i], HIGH);
       delay(200);
       digitalWrite(RelayPin[i], LOW);
     }
+  }
+
+  if (pulse[0] == true && relay == false){
+    digitalWrite(RelayPin[0], HIGH);
+    relay = true;
+  }
+  else if (pulse[0] == false && relay == true){
+    digitalWrite(RelayPin[0], LOW);
+    relay = false;
   }
 
   sendData();
