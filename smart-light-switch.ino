@@ -268,10 +268,60 @@ void readCurrents(){
     Serial.println("Read: ");
     Serial.println(i);
     digitalWrite(currentSwitchPin[i], HIGH);
-    doReadAlphaFilter(i);
+    getCurrent(i);
     digitalWrite(currentSwitchPin[i], LOW);
     Serial.println();
   }
+}
+
+int getAnalogValue(){
+  int loops = 10;
+  int maxValues[loops];
+  int maxValue = 0;
+  int sum = 0;
+  for (int i = 0; i < loops; i++){
+    int c = 50;
+    while (c-->0){
+      int readValue = analogRead(currentPin);
+      if (readValue > maxValues[i])
+           maxValues[i] = readValue;
+    }
+    sum += maxValues[i];
+  }
+  maxValue = spikeCheck(maxValues, loops, sum);
+  return maxValue;
+}
+
+int spikeCheck(int maxValues[], int loops, int sum){
+  int maxValue = 0;
+  int average = sum / loops;
+  for (int i = 0; i < loops; i++){
+    if ((maxValues[i] - average) > 3){
+      for (int j = i; j < loops - 1; j++){
+        maxValues[j] = maxValues[j + 1];
+      }
+      sum = 0;
+      for (int y = 0; y < loops - 1; y++){
+        sum =+ maxValues[y];
+      }
+      maxValue = spikeCheck(maxValues, loops - 1, sum);
+      return maxValue;
+    }
+    else{
+      if (maxValues[i] > maxValue)
+           maxValue = maxValues[i];
+    }
+  }
+  return maxValue;
+}
+
+void getCurrent(int i){
+  adcValue = getAnalogValue();
+  //The ESP's ADC when running at 3.3V has a resolution of (3.3/4095) 0.81mV per LSB.
+  //That means that 0.81/66 gives you 0.012A or 12mA per LSB.
+  //Therefore 10W lightbulb would be seen as 10W/220V=0.045A or 3-4 in analog.
+  currentResults[i] = adcValue * 0.012;
+  Serial.println(currentResults[i]);
 }
 
 int getVPP() {
