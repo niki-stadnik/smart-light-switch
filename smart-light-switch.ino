@@ -2,7 +2,6 @@
 #include <WiFi.h>
 #include <Adafruit_AHT10.h>
 
-//#include <VirtualWire.h>
 
 #include "config.h"
 const char* ssid = WIFI;
@@ -13,41 +12,15 @@ const char * host;
 const uint16_t port = PORT;
 char * key = KEY;
 
-/*
 #include "ACS712.h"
+ACS712  ACS(36, 3.0, 4095, 66);
+float weight = 0.2;
+int loops = 50;
+int balance = 0;
+float avrOld[8] = {0, 0, 0, 0, 0, 0, 0, 0};
 
-//  Arduino UNO has 5.0 volt with a max ADC value of 1023 steps
-//  ACS712 5A  uses 185 mV per A
-//  ACS712 20A uses 100 mV per A
-//  ACS712 30A uses  66 mV per A
-//ACS712  ACS(A0, 5.0, 1023, 100);
-ACS712  ACS0(36, 5.0, 4095, 66);  //tr
-ACS712  ACS1(39, 5.0, 4095, 66);  //t2r
-ACS712  ACS2(34, 5.0, 4095, 66);  //mr
-ACS712  ACS3(35, 5.0, 4095, 66);  //b2r
-ACS712  ACS4(32, 5.0, 4095, 66);  //br
-ACS712  ACS5(33, 5.0, 4095, 66);  //bl
-ACS712  ACS6(25, 5.0, 4095, 66);
-ACS712  ACS7(26, 5.0, 4095, 66);
-ACS712  ACS8(27, 5.0, 4095, 66);
-ACS712  ACS9(14, 5.0, 4095, 66);
-//  ESP 32 example (might requires resistors to step down the logic voltage)
-//  ACS712  ACS(25, 3.3, 4095, 185);
-*/
-
-/*
-float sensitivity = 66.0f; // Uncomment this for 30A board, Output sensitivity 66mV/A
-int adcValue= 0;
-const int currentPin = 36;
-float adcVoltage = 0.0f;
-float currentValue = 0.0f;
-int ARDUINO_REF = 3300;
-int offsetVoltage = ARDUINO_REF / 2;
-float errorCorrectionAmp = 0.0f; // Set this to use a correcting offset on readings, e.g. -0.15f;
-const float alpha = 0.1f; // Can vary this value between 0.1 and 0.9, changes filter impact
-*/
-const int currentPin = 36;
-int ARDUINO_REF = 3300;
+//const int currentPin = 36;
+//int ARDUINO_REF = 3300;
 
 float adcValue = 0.0f;
 float mV = 0.0f;
@@ -59,18 +32,6 @@ float currentResults[8];
 
 const int RelayPin[9] = {2, 15, 16, 13, 17, 5, 18, 19, 4};
 
-/*
-const int RelayPin0 = 2;
-const int RelayPin1 = 15;
-const int RelayPin2 = 16;
-const int RelayPin3 = 13;
-const int RelayPin4 = 17;
-const int RelayPin5 = 5;
-const int RelayPin6 = 18;
-const int RelayPin7 = 19;
-const int RelayPin8 = 4;
-//const int RelayPin9 = 0;
-*/
 
 unsigned long sendtimeing = 0;
 int countNoIdea = 0;
@@ -88,9 +49,7 @@ boolean relay = false;
 
 
 void setup() {
-
-  pinMode(currentPin, INPUT);
-
+  //GPIO setup
   for (int i = 0; i < 8; i++) {
     pinMode(currentSwitchPin[i], OUTPUT);
     digitalWrite(currentSwitchPin[i], LOW);
@@ -105,29 +64,6 @@ void setup() {
 
   //pinMode(TestMode, INPUT_PULLUP);
 
-/*
-  pinMode(RelayPin0, OUTPUT);
-  pinMode(RelayPin1, OUTPUT); 
-  pinMode(RelayPin2, OUTPUT); 
-  pinMode(RelayPin3, OUTPUT); 
-  pinMode(RelayPin4, OUTPUT); 
-  pinMode(RelayPin5, OUTPUT); 
-  pinMode(RelayPin6, OUTPUT); 
-  pinMode(RelayPin7, OUTPUT); 
-  pinMode(RelayPin8, OUTPUT); 
-  //pinMode(RelayPin9, OUTPUT); 
-
-  digitalWrite(RelayPin0, LOW);
-  digitalWrite(RelayPin1, LOW);
-  digitalWrite(RelayPin2, LOW);
-  digitalWrite(RelayPin3, LOW);
-  digitalWrite(RelayPin4, LOW);
-  digitalWrite(RelayPin5, LOW);
-  digitalWrite(RelayPin6, LOW);
-  digitalWrite(RelayPin7, LOW);
-  digitalWrite(RelayPin8, LOW);
-  //digitalWrite(RelayPin9, LOW);
-*/
  
   //set up coms
   Serial.begin(115200);
@@ -148,7 +84,7 @@ void setup() {
     delay(500);
     if (!aht.begin()) {
       Serial.println("Couldn't find sensor! 2");
-      ESP.restart();
+      //ESP.restart();
     }
   }
   Serial.println("AHT10 found");
@@ -163,25 +99,26 @@ void setup() {
   }
   */
 
-/*
-  ACS0.autoMidPoint();
-  ACS1.autoMidPoint();
-  ACS2.autoMidPoint();
-  ACS3.autoMidPoint();
-  ACS4.autoMidPoint();
-  ACS5.autoMidPoint();
-  ACS6.autoMidPoint();
-  ACS7.autoMidPoint();
-  ACS8.autoMidPoint();
-  ACS9.autoMidPoint();
-*/
+  //setting up current sensors
+  digitalWrite(currentSwitchPin[0], HIGH);
+  ACS.autoMidPoint();
 
+  Serial.print("MidPoint: ");
+  Serial.println(ACS.getMidPoint());
+  Serial.print("Noise mV: ");
+  Serial.println(ACS.getNoisemV());
+  Serial.print("Amp/Step: ");
+  Serial.println(ACS.getAmperePerStep(), 4);
+
+  auto0();
+  
+  digitalWrite(currentSwitchPin[0], LOW);
 }
 
 void loop() {
   
   if(!client.connected()){
-    if (!client.connect(hosttest, port)) {            //hostpi    //hosttest
+    if (!client.connect(hostpi, port)) {            //hostpi    //hosttest
     Serial.println("Connection to host failed");
     delay(1000);
     return;
@@ -194,60 +131,8 @@ void loop() {
 
     readCurrents();
 
-    sendData();
+    //sendData();
 
-/*
-    //---
-    int mA = ACS0.mA_AC();
-    Serial.print("mA: ");
-    Serial.print(mA);
-    Serial.print(". Form factor: ");
-    Serial.println(ACS0.getFormFactor());
-
-    Serial.println("start:");
-    mA = ACS0.mA_DC();
-    //mA = analogRead(36);
-    Serial.print("mA0: ");
-    Serial.println(mA);
-    mA = ACS1.mA_DC();
-    //mA = analogRead(39);
-    Serial.print("mA1: ");
-    Serial.println(mA);
-    mA = ACS2.mA_DC();
-    //mA = analogRead(34);
-    Serial.print("mA2: ");
-    Serial.println(mA);
-    mA = ACS3.mA_DC();
-    //mA = analogRead(35);
-    Serial.print("mA3: ");
-    Serial.println(mA);
-    mA = ACS4.mA_DC();
-    //mA = analogRead(32);
-    Serial.print("mA4: ");
-    Serial.println(mA);
-    mA = ACS5.mA_DC();
-    //mA = analogRead(33);
-    Serial.print("mA5: ");
-    Serial.println(mA);
-    mA = ACS6.mA_DC();
-    //mA = analogRead(25);
-    Serial.print("mA6: ");
-    Serial.println(mA);
-    mA = ACS7.mA_DC();
-    //mA = analogRead(26);
-    Serial.print("mA7: ");
-    Serial.println(mA);
-    mA = ACS8.mA_DC();
-    //mA = analogRead(27);
-    Serial.print("mA8: ");
-    Serial.println(mA);
-    mA = ACS9.mA_DC();
-    //mA = analogRead(14);
-    Serial.print("mA9: ");
-    Serial.println(mA);
-    Serial.println("end");
-    //---
-*/
     sendtimeing = millis();
   }
 
@@ -274,119 +159,53 @@ void readCurrents(){
   }
 }
 
-int getAnalogValue(){
-  int loops = 10;
-  int maxValues[loops];
-  int maxValue = 0;
-  int sum = 0;
-  for (int i = 0; i < loops; i++){
-    int c = 50;
-    while (c-->0){
-      int readValue = analogRead(currentPin);
-      if (readValue > maxValues[i])
-           maxValues[i] = readValue;
-    }
-    sum += maxValues[i];
-  }
-  maxValue = spikeCheck(maxValues, loops, sum);
-  return maxValue;
-}
 
-int spikeCheck(int maxValues[], int loops, int sum){
-  int maxValue = 0;
-  int average = sum / loops;
-  for (int i = 0; i < loops; i++){
-    if ((maxValues[i] - average) > 3){
-      for (int j = i; j < loops - 1; j++){
-        maxValues[j] = maxValues[j + 1];
-      }
-      sum = 0;
-      for (int y = 0; y < loops - 1; y++){
-        sum =+ maxValues[y];
-      }
-      maxValue = spikeCheck(maxValues, loops - 1, sum);
-      return maxValue;
-    }
-    else{
-      if (maxValues[i] > maxValue)
-           maxValue = maxValues[i];
-    }
-  }
-  return maxValue;
-}
 
 void getCurrent(int i){
-  adcValue = getAnalogValue();
+  adcValue = getValue();
+  if ((adcValue - avrOld[i]) > 1 || (avrOld[i] - adcValue) > 1)
+      avrOld[i] = adcValue;
+  else
+      adcValue = avrOld[i];
   //The ESP's ADC when running at 3.3V has a resolution of (3.3/4095) 0.81mV per LSB.
   //That means that 0.81/66 gives you 0.012A or 12mA per LSB.
   //Therefore 10W lightbulb would be seen as 10W/220V=0.045A or 3-4 in analog.
-  currentResults[i] = adcValue * 0.012;
+  currentResults[i] = adcValue * 12;
+  Serial.print(" avr: ");
+  Serial.print(adcValue, 0);
+  Serial.println();
   Serial.println(currentResults[i]);
 }
 
-int getVPP() {
-  int maxValue = 0;
-
-  int c=250;
-  while(c-->0) {
-       int readValue = analogRead(currentPin);
-
-       if (readValue > maxValue)
-           maxValue = readValue;
-   }
-
-   return maxValue;
- }
-
-// Reading and apply software correction
-void doReadAlphaFilter(int i) {
-   adcValue = getVPP();
-    mV = (adcValue / 4095.0f) * 5000.0f;              // (adcValue / 1024.0f) * 5000.0f; // mV
-    eCurrent = ((mV - 1650.0f) / 0.66f);  // 1650 = voltageRef/2, ACS712 5A=1.85f, 20A=1.0f, 30A=0.66f
-    //amp = eCurrent / 141.42f;           // eCurrent/(sqrt(2); // sqrt(2) = 1.4142
-
-    // Apply alpha filter
-    currentResults[i] = 0.1f * (eCurrent / 141.42f) + 0.9f * currentResults[i]; // alpha = 0.1f, 0.9f = (1-alpha)
-
-    // Manual fixup of readings
-    if (currentResults[i]<=1.5)
-      currentResults[i] = currentResults[i] * 0.93;
-    if (currentResults[i]>1.5 && currentResults[i]<=2.5)
-      currentResults[i] = currentResults[i] * 0.94;
-    else if (currentResults[i]>2.5 && currentResults[i]<=8.0)
-      currentResults[i] = currentResults[i] * 0.97;
-    else if (currentResults[i]>8.0 && currentResults[i]<=10.0)
-      currentResults[i] = currentResults[i] * 0.98;
-    else
-      currentResults[i] = currentResults[i] * 0.985;
-
-
-   Serial.println(currentResults[i]);
+int getValue(){
+  int sum = 0;
+  float value  = 0;
+  for (int i = 0; i < 3; i++){
+    float dummy = ACS.mA_AC_sampling(); //some dummy reads
+  }
+  for (int i = 0; i < loops; i++){
+    float mA = ACS.mA_AC_sampling();
+    value += weight * (mA - value);  // low pass filtering
+    sum += value;
+  }
+  int avr = sum / loops;
+  avr -= balance;
+  Serial.print(" value: ");
+  Serial.print(value);
+  return avr;
 }
-/*
-float doReadAlphaFilterDC() {
-   float average = 0.0f, previousValue = 0.0f;
 
-   analogRead(currentPin); // Dummy read, doesn't help
-
-   for(int i = 0; i < 1000; i++) {
-      adcValue = analogRead(currentPin);
-      adcVoltage = (adcValue / 4096.0f) * ARDUINO_REF;
-      currentValue = (((float)(adcVoltage - offsetVoltage)) / sensitivity);
-
-      if (i>0)
-        currentValue = alpha * currentValue + (1-alpha) * previousValue;
-
-      average += currentValue;
-      previousValue = currentValue;
-   }
-
-   float result = int((average / 1000.0f + errorCorrectionAmp) * 100) / 100.0;
-   Serial.println(result);
-   
-   return result; 
+void auto0(){
+  float value = ACS.mA_AC();  // get good initial value
+  int summ = 0;
+  for (int i = 0; i<10; i++){
+    summ += getValue();
+  }
+  balance = summ / 10;
 }
-*/
+
+//todo if not all sensors are calibrated the same -> make balance an array
+
 void sendData(){
   sensors_event_t humidity, temp;
     aht.getEvent(&humidity, &temp);// populate temp and humidity objects with fresh data
