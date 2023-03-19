@@ -1,6 +1,7 @@
 #include <ArduinoJson.h>
 #include <WiFi.h>
 #include <Adafruit_AHT10.h>
+#include "CurrentSensor.h"
 
 
 #include "config.h"
@@ -12,20 +13,8 @@ const char * host;
 const uint16_t port = PORT;
 char * key = KEY;
 
-#include "ACS712.h"
-ACS712  ACS(36, 3.0, 4095, 66);
-float weight = 0.2;
-int loops = 50;
-int balance = 0;
-float avrOld[8] = {0, 0, 0, 0, 0, 0, 0, 0};
 
-//const int currentPin = 36;
-//int ARDUINO_REF = 3300;
-
-float adcValue = 0.0f;
-float mV = 0.0f;
-float eCurrent = 0.0f;
-
+CurrentSensor* sens[8];
 
 const int currentSwitchPin[8] = {12, 14, 27, 25, 33, 26, 23, 32};
 float currentResults[8];
@@ -47,12 +36,10 @@ boolean relay = false;
 
 
 
-
 void setup() {
   //GPIO setup
   for (int i = 0; i < 8; i++) {
-    pinMode(currentSwitchPin[i], OUTPUT);
-    digitalWrite(currentSwitchPin[i], LOW);
+    sens[i] = new CurrentSensor(currentSwitchPin[i]);
     pinMode(RelayPin[i], OUTPUT);
     digitalWrite(RelayPin[i], LOW);
     currentResults[i] = 0.0f;
@@ -99,20 +86,6 @@ void setup() {
   }
   */
 
-  //setting up current sensors
-  digitalWrite(currentSwitchPin[0], HIGH);
-  ACS.autoMidPoint();
-
-  Serial.print("MidPoint: ");
-  Serial.println(ACS.getMidPoint());
-  Serial.print("Noise mV: ");
-  Serial.println(ACS.getNoisemV());
-  Serial.print("Amp/Step: ");
-  Serial.println(ACS.getAmperePerStep(), 4);
-
-  auto0();
-  
-  digitalWrite(currentSwitchPin[0], LOW);
 }
 
 void loop() {
@@ -129,7 +102,12 @@ void loop() {
 
   if(millis() >= sendtimeing + 500){
 
-    readCurrents();
+    for (int i=0; i<8; i++){
+      Serial.println("Read: ");
+      Serial.println(i);
+      currentResults[i] = sens[i]->getCurrent();
+      Serial.println();
+    }
 
     //sendData();
 
@@ -148,63 +126,6 @@ void loop() {
   
 }
 
-void readCurrents(){
-  for (int i=0; i<8; i++){
-    Serial.println("Read: ");
-    Serial.println(i);
-    digitalWrite(currentSwitchPin[i], HIGH);
-    getCurrent(i);
-    digitalWrite(currentSwitchPin[i], LOW);
-    Serial.println();
-  }
-}
-
-
-
-void getCurrent(int i){
-  adcValue = getValue();
-  if ((adcValue - avrOld[i]) > 1 || (avrOld[i] - adcValue) > 1)
-      avrOld[i] = adcValue;
-  else
-      adcValue = avrOld[i];
-  //The ESP's ADC when running at 3.3V has a resolution of (3.3/4095) 0.81mV per LSB.
-  //That means that 0.81/66 gives you 0.012A or 12mA per LSB.
-  //Therefore 10W lightbulb would be seen as 10W/220V=0.045A or 3-4 in analog.
-  currentResults[i] = adcValue * 12;
-  Serial.print(" avr: ");
-  Serial.print(adcValue, 0);
-  Serial.println();
-  Serial.println(currentResults[i]);
-}
-
-int getValue(){
-  int sum = 0;
-  float value  = 0;
-  for (int i = 0; i < 3; i++){
-    float dummy = ACS.mA_AC_sampling(); //some dummy reads
-  }
-  for (int i = 0; i < loops; i++){
-    float mA = ACS.mA_AC_sampling();
-    value += weight * (mA - value);  // low pass filtering
-    sum += value;
-  }
-  int avr = sum / loops;
-  avr -= balance;
-  Serial.print(" value: ");
-  Serial.print(value);
-  return avr;
-}
-
-void auto0(){
-  float value = ACS.mA_AC();  // get good initial value
-  int summ = 0;
-  for (int i = 0; i<10; i++){
-    summ += getValue();
-  }
-  balance = summ / 10;
-}
-
-//todo if not all sensors are calibrated the same -> make balance an array
 
 void sendData(){
   sensors_event_t humidity, temp;
