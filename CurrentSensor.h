@@ -8,10 +8,12 @@ class CurrentSensor{
   public:
     CurrentSensor(int pin);
     float getCurrent();
+    void auto0();
   private:
     ACS712  ACS;
     int _pin;
-
+    
+    float value;
     float weight;
     int loops;
     int balance;
@@ -20,6 +22,5 @@ class CurrentSensor{
     float adcValue;
     float returnCurrent;
     int getValue();
-    void auto0();
 };
 #endif

@@ -2,6 +2,8 @@
 #include <WiFi.h>
 #include <Adafruit_AHT10.h>
 #include "CurrentSensor.h"
+#include <Arduino.h> 
+#include "ACS712.h"
 
 
 #include "config.h"
@@ -14,9 +16,17 @@ const uint16_t port = PORT;
 char * key = KEY;
 
 
-CurrentSensor* sens[8];
+CurrentSensor sens0(12);
+CurrentSensor sens1(14);
+CurrentSensor sens2(27);
+CurrentSensor sens3(25);
+CurrentSensor sens4(33);
+CurrentSensor sens5(26);
+CurrentSensor sens6(23);
+CurrentSensor sens7(32);
 
-const int currentSwitchPin[8] = {12, 14, 27, 25, 33, 26, 23, 32};
+
+//const int currentSwitchPin[8] = {12, 14, 27, 25, 33, 26, 23, 32};
 float currentResults[8];
 
 const int RelayPin[9] = {2, 15, 16, 13, 17, 5, 18, 19, 4};
@@ -39,7 +49,6 @@ boolean relay = false;
 void setup() {
   //GPIO setup
   for (int i = 0; i < 8; i++) {
-    sens[i] = new CurrentSensor(currentSwitchPin[i]);
     pinMode(RelayPin[i], OUTPUT);
     digitalWrite(RelayPin[i], LOW);
     currentResults[i] = 0.0f;
@@ -54,7 +63,8 @@ void setup() {
  
   //set up coms
   Serial.begin(115200);
- 
+  
+ /*
   WiFi.begin(ssid, password);
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
@@ -75,7 +85,7 @@ void setup() {
     }
   }
   Serial.println("AHT10 found");
-
+*/
 /*
   if(digitalRead(TestMode) == HIGH){
     host = hostpi;
@@ -85,11 +95,18 @@ void setup() {
     Serial.println("test mode");
   }
   */
-
+  sens0.auto0();
+  sens1.auto0();
+  sens2.auto0();
+  sens3.auto0();
+  sens4.auto0();
+  sens5.auto0();
+  sens6.auto0();
+  sens7.auto0();
 }
 
 void loop() {
-  
+  /*
   if(!client.connected()){
     if (!client.connect(hostpi, port)) {            //hostpi    //hosttest
     Serial.println("Connection to host failed");
@@ -98,23 +115,48 @@ void loop() {
     }
     Serial.println("Connected to server successful!");
   }
-
+*/
 
   if(millis() >= sendtimeing + 500){
+    Serial.print("Read: 0 : ");
+    currentResults[0] = sens0.getCurrent();
+    Serial.println();
+    Serial.print("Read: 1 : ");
+    currentResults[1] = sens1.getCurrent();
+    Serial.println();
+    Serial.print("Read: 2 : ");
+    currentResults[2] = sens2.getCurrent();
+    Serial.println();
+    Serial.print("Read: 3 : ");
+    currentResults[3] = sens3.getCurrent();
+    Serial.println();
+    Serial.print("Read: 4 : ");
+    currentResults[4] = sens4.getCurrent();
+    Serial.println();
+    Serial.print("Read: 5 : ");
+    currentResults[5] = sens5.getCurrent();
+    Serial.println();
+    Serial.print("Read: 6 : ");
+    currentResults[6] = sens6.getCurrent();
+    Serial.println();
+    Serial.print("Read: 7 : ");
+    currentResults[7] = sens7.getCurrent();
+    Serial.println();
 
+/*
     for (int i=0; i<8; i++){
       Serial.println("Read: ");
       Serial.println(i);
-      currentResults[i] = sens[i]->getCurrent();
+      currentResults[i] = sens0.getCurrent();
       Serial.println();
-    }
+    }*/
 
     //sendData();
 
     sendtimeing = millis();
   }
 
-  
+  /*
   if (!client) {
     return;
   }
@@ -122,7 +164,7 @@ void loop() {
   if(line != NULL && line.length() > 5){ // was > 5
     Serial.println(line.length());
     getData(line);
-  }
+  }*/
   
 }
 
