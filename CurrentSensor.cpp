@@ -8,12 +8,14 @@ CurrentSensor::CurrentSensor(int pin) : ACS(36, 3.0, 4095, 66){
 
   _pin = pin;
   value  = 0;
-  weight = 0.2;
+  weight = 0.3f;
   loops = 50;
   balance = 0;
   avrOld = 0;
   adcValue = 0.0f;
   returnCurrent = 0.0f;
+
+  maxValue = 0.0f;
 }
 
 float CurrentSensor::getCurrent(){
@@ -22,13 +24,17 @@ float CurrentSensor::getCurrent(){
       avrOld = adcValue;
   else
       adcValue = avrOld;
-  if (adcValue < 3) adcValue = 0;
+  if (adcValue <= 3) adcValue = 0;
+
+  if (adcValue > maxValue) maxValue = adcValue;
   //The ESP's ADC when running at 3.3V has a resolution of (3.3/4095) 0.81mV per LSB.
   //That means that 0.81/66 gives you 0.012A or 12mA per LSB.
   //Therefore 10W lightbulb would be seen as 10W/220V=0.045A or 3-4 in analog.
   returnCurrent = adcValue * 12;
   Serial.print(" avr: ");
   Serial.print(adcValue, 0);
+  Serial.print(" max: ");
+  Serial.print(maxValue, 0);
   Serial.println();
   Serial.println(returnCurrent);  
   return returnCurrent;
@@ -47,9 +53,10 @@ int CurrentSensor::getValue(){
   }
   int avr = sum / loops;
   avr -= balance;
-  Serial.print(" value: ");
-  Serial.print(value);
+  //Serial.print(" value: ");
+  //Serial.print(value);
   digitalWrite(_pin, LOW);
+  delay(200);
   return avr;
 }
 

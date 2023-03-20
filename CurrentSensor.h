@@ -12,7 +12,9 @@ class CurrentSensor{
   private:
     ACS712  ACS;
     int _pin;
-    
+
+    float maxValue;
+
     float value;
     float weight;
     int loops;

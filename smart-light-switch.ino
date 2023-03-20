@@ -117,7 +117,7 @@ void loop() {
   }
 */
 
-  if(millis() >= sendtimeing + 500){
+  //if(millis() >= sendtimeing + 500){
     Serial.print("Read: 0 : ");
     currentResults[0] = sens0.getCurrent();
     Serial.println();
@@ -153,8 +153,8 @@ void loop() {
 
     //sendData();
 
-    sendtimeing = millis();
-  }
+    //sendtimeing = millis();
+  //}
 
   /*
   if (!client) {
