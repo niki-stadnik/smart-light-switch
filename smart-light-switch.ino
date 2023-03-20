@@ -38,7 +38,7 @@ void setup() {
   //GPIO setup
   for (int i = 0; i < 8; i++) {
     pinMode(powerSensorPin[i], INPUT_PULLDOWN);
-    powerResults[i] = false;
+    powerResults[i] = true;
   }
   for (int i = 0; i < 9; i++) {
     pinMode(RelayPin[i], OUTPUT);
@@ -50,7 +50,6 @@ void setup() {
  
   //set up coms
   Serial.begin(115200);
-  
  /*
   WiFi.begin(ssid, password);
   while (WiFi.status() != WL_CONNECTED) {
@@ -107,6 +106,8 @@ void loop() {
       powerResults[i] = digitalRead(powerSensorPin[i]);
       Serial.println(powerResults[i]);
     }
+
+    Serial.println("----------------------------");
 
     //sendData();
 
