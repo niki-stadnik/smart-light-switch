@@ -8,7 +8,7 @@ CurrentSensor::CurrentSensor(int pin) : ACS(36, 3.0, 4095, 66){
 
   _pin = pin;
   value  = 0;
-  weight = 0.3f;
+  weight = 0.2f;
   loops = 50;
   balance = 0;
   avrOld = 0;
@@ -53,24 +53,24 @@ int CurrentSensor::getValue(){
   }
   int avr = sum / loops;
   avr -= balance;
-  //Serial.print(" value: ");
-  //Serial.print(value);
+  Serial.print(" value: ");
+  Serial.print(value);
   digitalWrite(_pin, LOW);
-  delay(200);
+  delay(500);
   return avr;
 }
 
 void CurrentSensor::auto0(){
   digitalWrite(_pin, HIGH);
   ACS.autoMidPoint();
-
+/*
   Serial.print("MidPoint: ");
   Serial.println(ACS.getMidPoint());
   Serial.print("Noise mV: ");
   Serial.println(ACS.getNoisemV());
   Serial.print("Amp/Step: ");
   Serial.println(ACS.getAmperePerStep(), 4);
-
+*/
   value = ACS.mA_AC();  // get good initial value
   int summ = 0;
   for (int i = 0; i<10; i++){

@@ -96,13 +96,13 @@ void setup() {
   }
   */
   sens0.auto0();
-  sens1.auto0();
+  /*sens1.auto0();
   sens2.auto0();
   sens3.auto0();
   sens4.auto0();
   sens5.auto0();
   sens6.auto0();
-  sens7.auto0();
+  sens7.auto0();*/
 }
 
 void loop() {
@@ -120,7 +120,7 @@ void loop() {
   //if(millis() >= sendtimeing + 500){
     Serial.print("Read: 0 : ");
     currentResults[0] = sens0.getCurrent();
-    Serial.println();
+    Serial.println();/*
     Serial.print("Read: 1 : ");
     currentResults[1] = sens1.getCurrent();
     Serial.println();
@@ -141,7 +141,7 @@ void loop() {
     Serial.println();
     Serial.print("Read: 7 : ");
     currentResults[7] = sens7.getCurrent();
-    Serial.println();
+    Serial.println();*/
 
 /*
     for (int i=0; i<8; i++){
