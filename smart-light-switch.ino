@@ -1,19 +1,26 @@
-#include <ArduinoJson.h>
+#include <Arduino.h>
 #include <WiFi.h>
+#include "WebSocketsClient.h"
+#include "StompClient.h"
+#include "SudoJSON.h"
 #include <Adafruit_AHT10.h>
-#include <Arduino.h> 
+#include <ArduinoJson.h>
+
 
 
 #include "config.h"
-const char* ssid = WIFI;
-const char* password =  PASS;
-const char * hostpi = HOSTPI;
-const char * hosttest = HOSTTEST;
-const char * host;
-const uint16_t port = PORT;
-char * key = KEY;
+const char* wlan_ssid = WIFI;
+const char* wlan_password =  PASS;
+const char * ws_host = HOSTPI;
+const uint16_t ws_port = PORT;
+const char* ws_baseurl = URL; 
+bool useWSS = USEWSS;
+const char * key = KEY;
 
 
+// VARIABLES
+WebSocketsClient webSocket;
+Stomp::StompClient stomper(webSocket, ws_host, ws_port, ws_baseurl, true);
 
 const int powerSensorPin[8] = {12, 14, 27, 25, 33, 26, 23, 32};
 boolean powerResults[8];
@@ -23,10 +30,6 @@ const int RelayPin[9] = {2, 15, 16, 13, 17, 5, 18, 19, 4};
 unsigned long sendtimeing = 0;
 int countNoIdea = 0;
 
-//const int TestMode = 23;
-
-
-WiFiClient client;
 
 Adafruit_AHT10 aht;
 
@@ -35,6 +38,34 @@ boolean relay = false;
 
 
 void setup() {
+  // setup serial
+  Serial.begin(115200);
+  // flush it - ESP Serial seems to start with rubbish
+  Serial.println();
+
+  // connect to WiFi
+  Serial.println("Logging into WLAN: " + String(wlan_ssid));
+  Serial.print(" ...");
+  WiFi.begin(wlan_ssid, wlan_password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println(" success.");
+  Serial.print("IP: "); Serial.println(WiFi.localIP());
+  stomper.onConnect(subscribe);
+  stomper.onError(error);
+
+
+ // Start the StompClient
+
+  if (useWSS) {
+    stomper.beginSSL();
+  } else {
+    stomper.begin();
+  }
+
+
   //GPIO setup
   for (int i = 0; i < 8; i++) {
     pinMode(powerSensorPin[i], INPUT_PULLDOWN);
@@ -45,22 +76,7 @@ void setup() {
     digitalWrite(RelayPin[i], LOW);
   }
 
-  //pinMode(TestMode, INPUT_PULLUP);
-
- 
-  //set up coms
-  Serial.begin(115200);
   
- /*
-  WiFi.begin(ssid, password);
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.println("...");
-  }
-  Serial.print("WiFi connected with IP: ");
-  Serial.println(WiFi.localIP());
-
-
   //set up sensors
   Serial.println("AHT10 test");
   if (!aht.begin()) {
@@ -68,37 +84,35 @@ void setup() {
     delay(500);
     if (!aht.begin()) {
       Serial.println("Couldn't find sensor! 2");
-      //ESP.restart();
+      ESP.restart();
     }
   }
   Serial.println("AHT10 found");
-*/
-/*
-  if(digitalRead(TestMode) == HIGH){
-    host = hostpi;
-    Serial.println("normal mode");
-  }else{
-    host = hosttest;
-    Serial.println("test mode");
-  }
-  */
 }
 
+
+// Once the Stomp connection has been made, subscribe to a topic
+
+void subscribe(Stomp::StompCommand cmd) {
+  Serial.println("Connected to STOMP broker");
+  stomper.subscribe("/topic/lightSwitch", Stomp::CLIENT, handleMessage);    //this is the @MessageMapping("/test") anotation so /topic must be added
+}
+
+Stomp::Stomp_Ack_t handleMessage(const Stomp::StompCommand cmd) {
+  Serial.println(cmd.body);
+  getData(cmd.body);
+  return Stomp::CONTINUE;
+}
+
+void error(const Stomp::StompCommand cmd) {
+  Serial.println("ERROR: " + cmd.body);
+}
+
+
+
 void loop() {
-  /*
-  if(!client.connected()){
-    if (!client.connect(hostpi, port)) {            //hostpi    //hosttest
-    Serial.println("Connection to host failed");
-    delay(1000);
-    return;
-    }
-    Serial.println("Connected to server successful!");
-  }
-*/
-
+  
   if(millis() >= sendtimeing + 500){
-    
-
 
     for (int i=0; i<8; i++){
       Serial.print("Status: ");
@@ -108,21 +122,11 @@ void loop() {
       Serial.println(powerResults[i]);
     }
 
-    //sendData();
+    sendData();
 
     sendtimeing = millis();
   }
-
-  /*
-  if (!client) {
-    return;
-  }
-  String line = client.readStringUntil('\r');
-  if(line != NULL && line.length() > 5){ // was > 5
-    Serial.println(line.length());
-    getData(line);
-  }*/
-  
+  webSocket.loop();
 }
 
 
@@ -132,79 +136,56 @@ void sendData(){
     Serial.print("Temperature: "); Serial.print(temp.temperature); Serial.println(" degrees C");
     Serial.print("Humidity: "); Serial.print(humidity.relative_humidity); Serial.println("% rH");
   
-
-  DynamicJsonDocument doc(1024);
-  doc["ID"] = 2;
-  JsonObject dat = doc.createNestedObject("data");
-  dat["fuseBoxTemp"] = temp.temperature;
-  dat["fuseBoxHum"] = humidity.relative_humidity;
-  dat["fuseBoxFan"] = relay;
-  dat["light0"] = powerResults[0];
-  dat["light1"] = powerResults[1];
-  dat["light2"] = powerResults[2];
-  dat["light3"] = powerResults[3];
-  dat["light4"] = powerResults[4];
-  dat["light5"] = powerResults[5];
-  dat["light6"] = powerResults[6];
-  dat["light7"] = powerResults[7];
-
-  
-  char json[1024];
-  serializeJson(doc, json);
-
-  //String out = encr(json);  //encripting the json char array
-  //client.println(out);
-  Serial.println(json);
-
-  client.println(json);
+  // Construct the STOMP message
+  SudoJSON json;
+  json.addPair("fuseBoxTemp", temp.temperature);
+  json.addPair("fuseBoxHum", humidity.relative_humidity);
+  json.addPair("fuseBoxFan", relay);
+  json.addPair("light0", powerResults[0]);
+  json.addPair("light1", powerResults[1]);
+  json.addPair("light2", powerResults[2]);
+  json.addPair("light3", powerResults[3]);
+  json.addPair("light4", powerResults[4]);
+  json.addPair("light5", powerResults[5]);
+  json.addPair("light6", powerResults[6]);
+  json.addPair("light7", powerResults[7]);
+  // Send the message to the STOMP server
+  stomper.sendMessage("/app/lightSwitch", json.retrive());   //this is the @SendTo anotation
 }
 
 void getData(String input){
-  //String dec = decr(input);
-  Serial.println("Decoded: ");
-  //Serial.println(dec);
-  String dec = input;
-
-  Serial.println(dec);
-
-  char firstChar = dec.charAt(0);
-  //Serial.println(firstChar);
-  if (firstChar != '{') {
-    countNoIdea++;
-    if (countNoIdea >= 5){
-      Serial.println("5 unknown messages");
-      ESP.restart();
-    }
-    return;   //ensures that the json is decoded correctly
+  char string[input.length()+1];
+  char out[input.length()+1];
+  input.toCharArray(string, input.length()+1);
+  int count = 0;
+  for(int i =0; i < input.length(); i++ ) {
+    if (string[i] != '\\'){
+      out[i - count]=string[i];
+    }else count++;
   }
-  DynamicJsonDocument doc(1024);
-  DeserializationError error = deserializeJson(doc, dec);
+  Serial.println(out);
+  DynamicJsonDocument doc(256);
+  DeserializationError error = deserializeJson(doc, out);
   if (error) {
     Serial.print("deserializeJson() failed: ");
     Serial.println(error.c_str());
     Serial.print("in:");
-    Serial.println(input);
+    Serial.println(out);
     ESP.restart();
     return;
   }
-  
-  countNoIdea = 0;
 
-  int id = doc["ID"]; //2
-  if (id != 2){
-    Serial.println("message is brodcast");
-    return;
-  }
+
   boolean pulse[10];
-  pulse[0] = doc["data"]["pulse0"];
-  pulse[1] = doc["data"]["pulse1"];
-  pulse[2] = doc["data"]["pulse2"];
-  pulse[3] = doc["data"]["pulse3"];
-  pulse[4] = doc["data"]["pulse4"];
-  pulse[5] = doc["data"]["pulse5"];
-  pulse[6] = doc["data"]["pulse6"];
-  pulse[7] = doc["data"]["pulse7"];
-  pulse[8] = doc["data"]["pulse8"];
+  pulse[0] = doc["pulse0"];
+  pulse[1] = doc["pulse1"];
+  pulse[2] = doc["pulse2"];
+  pulse[3] = doc["pulse3"];
+  pulse[4] = doc["pulse4"];
+  pulse[5] = doc["pulse5"];
+  pulse[6] = doc["pulse6"];
+  pulse[7] = doc["pulse7"];
+  pulse[8] = doc["pulse8"];
 
 
   //atm turns all the lights in sequence not at the same time (cool effect?) 
