@@ -206,5 +206,5 @@ void getData(String input){
     relay = false;
   }
 
-  sendData();
+  //sendData();
 }
