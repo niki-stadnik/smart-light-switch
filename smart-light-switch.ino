@@ -21,6 +21,7 @@ const char * key = KEY;
 // VARIABLES
 WebSocketsClient webSocket;
 Stomp::StompClient stomper(webSocket, ws_host, ws_port, ws_baseurl, true);
+unsigned long keepAlive = 0;
 
 const int powerSensorPin[8] = {12, 14, 27, 25, 33, 26, 23, 32};
 boolean powerResults[8];
@@ -96,11 +97,18 @@ void setup() {
 void subscribe(Stomp::StompCommand cmd) {
   Serial.println("Connected to STOMP broker");
   stomper.subscribe("/topic/lightSwitch", Stomp::CLIENT, handleMessage);    //this is the @MessageMapping("/test") anotation so /topic must be added
+  stomper.subscribe("/topic/keepAlive", Stomp::CLIENT, handleKeepAlive);
 }
 
 Stomp::Stomp_Ack_t handleMessage(const Stomp::StompCommand cmd) {
   Serial.println(cmd.body);
+  keepAlive = millis();
   getData(cmd.body);
+  return Stomp::CONTINUE;
+}
+Stomp::Stomp_Ack_t handleKeepAlive(const Stomp::StompCommand cmd) {
+  Serial.println(cmd.body);
+  keepAlive = millis();
   return Stomp::CONTINUE;
 }
 
@@ -111,6 +119,10 @@ void error(const Stomp::StompCommand cmd) {
 
 
 void loop() {
+  if(millis() >= keepAlive + 600000){  //if no messages are recieved in 10min - restart esp
+    ESP.restart();
+    keepAlive = millis();
+  }
   
   if(millis() >= sendtimeing + 500){
 
