@@ -4,8 +4,6 @@
 #include "StompClient.h"
 #include "SudoJSON.h"
 #include <Adafruit_AHT10.h>
-#include <ArduinoJson.h>
-
 
 
 #include "config.h"
@@ -119,12 +117,12 @@ void error(const Stomp::StompCommand cmd) {
 
 
 void loop() {
-  if(millis() >= keepAlive + 600000){  //if no messages are recieved in 10min - restart esp
+  if(millis() >= keepAlive + 60000){  //if no messages are recieved in 1min - restart esp
     ESP.restart();
     keepAlive = millis();
   }
   
-  if(millis() >= sendtimeing + 500){
+  if(millis() >= sendtimeing + 250){
 
     for (int i=0; i<8; i++){
       Serial.print("Status: ");
@@ -166,39 +164,18 @@ void sendData(){
 }
 
 void getData(String input){
-  char string[input.length()+1];
-  char out[input.length()+1];
-  input.toCharArray(string, input.length()+1);
-  int count = 0;
-  for(int i =0; i < input.length(); i++ ) {
-    if (string[i] != '\\'){
-      out[i - count]=string[i];
-    }else count++;
-  }
-  Serial.println(out);
-  DynamicJsonDocument doc(256);
-  DeserializationError error = deserializeJson(doc, out);
-  if (error) {
-    Serial.print("deserializeJson() failed: ");
-    Serial.println(error.c_str());
-    Serial.print("in:");
-    Serial.println(out);
-    ESP.restart();
-    return;
-  }
-
+  SudoJSON json = SudoJSON(input);
 
   boolean pulse[10];
-  pulse[0] = doc["pulse0"];
-  pulse[1] = doc["pulse1"];
-  pulse[2] = doc["pulse2"];
-  pulse[3] = doc["pulse3"];
-  pulse[4] = doc["pulse4"];
-  pulse[5] = doc["pulse5"];
-  pulse[6] = doc["pulse6"];
-  pulse[7] = doc["pulse7"];
-  pulse[8] = doc["pulse8"];
-
+  pulse[0] = json.getPairB("pulse0");
+  pulse[1] = json.getPairB("pulse1");
+  pulse[2] = json.getPairB("pulse2");
+  pulse[3] = json.getPairB("pulse3");
+  pulse[4] = json.getPairB("pulse4");
+  pulse[5] = json.getPairB("pulse5");
+  pulse[6] = json.getPairB("pulse6");
+  pulse[7] = json.getPairB("pulse7");
+  pulse[8] = json.getPairB("pulse8");
 
   //atm turns all the lights in sequence not at the same time (cool effect?) 
   for (int i = 1; i < 9; i++){
