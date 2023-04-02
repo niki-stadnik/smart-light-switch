@@ -5,6 +5,19 @@
 #include "SudoJSON.h"
 #include <Adafruit_AHT10.h>
 
+//debug
+#define DEBUG 0 //1 = debug messages ON; 0 = debug messages OFF
+
+#if DEBUG == 1
+#define debugStart(x) Serial.begin(x)
+#define debug(x) Serial.print(x)
+#define debugln(x) Serial.println(x)
+#else
+#define debugStart(x)
+#define debug(x)
+#define debugln(x)
+#endif
+
 
 #include "config.h"
 const char* wlan_ssid = WIFI;
@@ -38,20 +51,20 @@ boolean relay = false;
 
 void setup() {
   // setup serial
-  Serial.begin(115200);
+  debugStart(115200);
   // flush it - ESP Serial seems to start with rubbish
-  Serial.println();
+  debugln();
 
   // connect to WiFi
-  Serial.println("Logging into WLAN: " + String(wlan_ssid));
-  Serial.print(" ...");
+  debugln("Logging into WLAN: " + String(wlan_ssid));
+  debug(" ...");
   WiFi.begin(wlan_ssid, wlan_password);
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
-    Serial.print(".");
+    debug(".");
   }
-  Serial.println(" success.");
-  Serial.print("IP: "); Serial.println(WiFi.localIP());
+  debugln(" success.");
+  debug("IP: "); debugln(WiFi.localIP());
   stomper.onConnect(subscribe);
   stomper.onError(error);
 
@@ -77,41 +90,41 @@ void setup() {
 
   
   //set up sensors
-  Serial.println("AHT10 test");
+  debugln("AHT10 test");
   if (!aht.begin()) {
-    Serial.println("Couldn't find sensor!");
+    debugln("Couldn't find sensor!");
     delay(500);
     if (!aht.begin()) {
-      Serial.println("Couldn't find sensor! 2");
+      debugln("Couldn't find sensor! 2");
       ESP.restart();
     }
   }
-  Serial.println("AHT10 found");
+  debugln("AHT10 found");
 }
 
 
 // Once the Stomp connection has been made, subscribe to a topic
 
 void subscribe(Stomp::StompCommand cmd) {
-  Serial.println("Connected to STOMP broker");
+  debugln("Connected to STOMP broker");
   stomper.subscribe("/topic/lightSwitch", Stomp::CLIENT, handleMessage);    //this is the @MessageMapping("/test") anotation so /topic must be added
   stomper.subscribe("/topic/keepAlive", Stomp::CLIENT, handleKeepAlive);
 }
 
 Stomp::Stomp_Ack_t handleMessage(const Stomp::StompCommand cmd) {
-  Serial.println(cmd.body);
+  debugln(cmd.body);
   keepAlive = millis();
   getData(cmd.body);
   return Stomp::CONTINUE;
 }
 Stomp::Stomp_Ack_t handleKeepAlive(const Stomp::StompCommand cmd) {
-  Serial.println(cmd.body);
+  debugln(cmd.body);
   keepAlive = millis();
   return Stomp::CONTINUE;
 }
 
 void error(const Stomp::StompCommand cmd) {
-  Serial.println("ERROR: " + cmd.body);
+  debugln("ERROR: " + cmd.body);
 }
 
 
@@ -125,11 +138,11 @@ void loop() {
   if(millis() >= sendtimeing + 250){
 
     for (int i=0; i<8; i++){
-      Serial.print("Status: ");
-      Serial.print(i);
-      Serial.print(" : ");
+      debug("Status: ");
+      debug(i);
+      debug(" : ");
       powerResults[i] = digitalRead(powerSensorPin[i]);
-      Serial.println(powerResults[i]);
+      debugln(powerResults[i]);
     }
 
     sendData();
@@ -143,8 +156,8 @@ void loop() {
 void sendData(){
   sensors_event_t humidity, temp;
     aht.getEvent(&humidity, &temp);// populate temp and humidity objects with fresh data
-    Serial.print("Temperature: "); Serial.print(temp.temperature); Serial.println(" degrees C");
-    Serial.print("Humidity: "); Serial.print(humidity.relative_humidity); Serial.println("% rH");
+    debug("Temperature: "); debug(temp.temperature); debugln(" degrees C");
+    debug("Humidity: "); debug(humidity.relative_humidity); debugln("% rH");
   
   // Construct the STOMP message
   SudoJSON json;
