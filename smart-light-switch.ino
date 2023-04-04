@@ -33,6 +33,15 @@ const char * key = KEY;
 WebSocketsClient webSocket;
 Stomp::StompClient stomper(webSocket, ws_host, ws_port, ws_baseurl, true);
 unsigned long keepAlive = 0;
+boolean bootFlag = false;
+
+//Timer Interrupt
+hw_timer_t *Timer0_Cfg = NULL;
+void IRAM_ATTR Timer0_ISR(){
+    if(bootFlag)ESP.restart();
+    bootFlag = true;
+}
+
 
 const int powerSensorPin[8] = {12, 14, 27, 25, 33, 26, 23, 32};
 boolean powerResults[8];
@@ -50,6 +59,11 @@ boolean relay = false;
 
 
 void setup() {
+  //Timer Interrupt
+  Timer0_Cfg = timerBegin(0, 80, true);
+  timerAttachInterrupt(Timer0_Cfg, &Timer0_ISR, true);
+  timerAlarmWrite(Timer0_Cfg, 30000000, true); //5 000 000us = 5s timer, 30 000 000us = 30s
+  timerAlarmEnable(Timer0_Cfg);
   // setup serial
   debugStart(115200);
   // flush it - ESP Serial seems to start with rubbish
@@ -134,6 +148,8 @@ void loop() {
     ESP.restart();
     keepAlive = millis();
   }
+
+  bootFlag = false;
   
   if(millis() >= sendtimeing + 250){
 
