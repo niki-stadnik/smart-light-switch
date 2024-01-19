@@ -3,10 +3,9 @@
 #include "WebSocketsClient.h"
 #include "StompClient.h"
 #include "SudoJSON.h"
-//#include <Adafruit_AHT10.h>
 
 //debug
-#define DEBUG 0 //1 = debug messages ON; 0 = debug messages OFF
+#define DEBUG 1 //1 = debug messages ON; 0 = debug messages OFF
 
 #if DEBUG == 1
 #define debugStart(x) Serial.begin(x)
@@ -43,18 +42,12 @@ void IRAM_ATTR Timer0_ISR(){
 }
 
 
-const int powerSensorPin[8] = {39, 34, 35, 32, 33, 14, 5, 15};
+const int powerSensorPin[8] = {39, 34, 35, 32, 33, 14, 25, 15};
 boolean powerResults[8];
 const int RelayPin[9] = {4, 16, 17, 18, 19, 23, 13, 27, 26};
 
 
 unsigned long sendtimeing = 0;
-//int countNoIdea = 0;
-
-
-//Adafruit_AHT10 aht;
-
-boolean relay = false;
 
 
 
@@ -93,11 +86,7 @@ void setup() {
 
 
   //GPIO setup
-  for (int i = 0; i < 2; i++) {
-    pinMode(powerSensorPin[i], INPUT);
-    powerResults[i] = false;
-  }
-  for (int i = 3; i < 8; i++) {
+  for (int i = 0; i < 8; i++) {
     pinMode(powerSensorPin[i], INPUT_PULLDOWN);
     powerResults[i] = false;
   }
@@ -106,19 +95,6 @@ void setup() {
     digitalWrite(RelayPin[i], LOW);
   }
 
-  /*
-  //set up sensors
-  debugln("AHT10 test");
-  if (!aht.begin()) {
-    debugln("Couldn't find sensor!");
-    delay(500);
-    if (!aht.begin()) {
-      debugln("Couldn't find sensor! 2");
-      ESP.restart();
-    }
-  }
-  debugln("AHT10 found");
-  */
 }
 
 
@@ -168,12 +144,6 @@ void loop() {
 
 
 void sendData(){
-  /*
-  sensors_event_t humidity, temp;
-    aht.getEvent(&humidity, &temp);// populate temp and humidity objects with fresh data
-    debug("Temperature: "); debug(temp.temperature); debugln(" degrees C");
-    debug("Humidity: "); debug(humidity.relative_humidity); debugln("% rH");
-    */
 
   for (int i=0; i<8; i++){
     debug("Status: ");
@@ -185,9 +155,6 @@ void sendData(){
   
   // Construct the STOMP message
   SudoJSON json;
-  //json.addPair("fuseBoxTemp", temp.temperature);
-  //json.addPair("fuseBoxHum", humidity.relative_humidity);
-  //json.addPair("fuseBoxFan", relay);
   json.addPair("light0", powerResults[0]);
   json.addPair("light1", powerResults[1]);
   json.addPair("light2", powerResults[2]);
@@ -203,7 +170,7 @@ void sendData(){
 void getData(String input){
   SudoJSON json = SudoJSON(input);
 
-  boolean pulse[10];
+  boolean pulse[9];
   pulse[0] = json.getPairB("pulse0");
   pulse[1] = json.getPairB("pulse1");
   pulse[2] = json.getPairB("pulse2");
@@ -212,10 +179,10 @@ void getData(String input){
   pulse[5] = json.getPairB("pulse5");
   pulse[6] = json.getPairB("pulse6");
   pulse[7] = json.getPairB("pulse7");
-  pulse[8] = json.getPairB("pulse8");
+  pulse[8] = json.getPairB("pulse8"); //restart pulse
 
   //atm turns all the lights in sequence not at the same time (cool effect?) 
-  for (int i = 0; i < 7; i++){
+  for (int i = 0; i < 8; i++){
     if(pulse[i]){
       digitalWrite(RelayPin[i], HIGH);
       delay(200);
@@ -224,21 +191,10 @@ void getData(String input){
   }
 
   //restarts the other ESP32
-  if (pulse[7] == true){
-    digitalWrite(RelayPin[7], HIGH);
+  if (pulse[8] == true){
+    digitalWrite(RelayPin[8], HIGH);
     delay(2000);
-    digitalWrite(RelayPin[7], LOW);
+    digitalWrite(RelayPin[8], LOW);
   }
-  /*
-  if (pulse[0] == true && relay == false){
-    digitalWrite(RelayPin[0], HIGH);
-    relay = true;
-  }
-  else if (pulse[0] == false && relay == true){
-    digitalWrite(RelayPin[0], LOW);
-    relay = false;
-  }
-  */
 
-  //sendData();
 }
