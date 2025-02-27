@@ -5,7 +5,7 @@
 #include "SudoJSON.h"
 
 //debug
-#define DEBUG 1 //1 = debug messages ON; 0 = debug messages OFF
+#define DEBUG 0 //1 = debug messages ON; 0 = debug messages OFF
 
 #if DEBUG == 1
 #define debugStart(x) Serial.begin(x)
@@ -32,19 +32,11 @@ const char * key = KEY;
 WebSocketsClient webSocket;
 Stomp::StompClient stomper(webSocket, ws_host, ws_port, ws_baseurl, true);
 unsigned long keepAlive = 0;
-boolean bootFlag = false;
-
-//Timer Interrupt
-hw_timer_t *Timer0_Cfg = NULL;
-void IRAM_ATTR Timer0_ISR(){
-    if(bootFlag)ESP.restart();
-    bootFlag = true;
-}
 
 
 const int powerSensorPin[8] = {39, 34, 35, 32, 33, 14, 25, 15};
 boolean powerResults[8];
-const int RelayPin[9] = {4, 16, 17, 18, 19, 23, 13, 27, 26};
+const int RelayPin[9] = {26, 27, 13, 23, 19, 18, 17, 16, 4};
 
 
 unsigned long sendtimeing = 0;
@@ -52,11 +44,15 @@ unsigned long sendtimeing = 0;
 
 
 void setup() {
-  //Timer Interrupt
-  Timer0_Cfg = timerBegin(0, 80, true);
-  timerAttachInterrupt(Timer0_Cfg, &Timer0_ISR, true);
-  timerAlarmWrite(Timer0_Cfg, 30000000, true); //5 000 000us = 5s timer, 30 000 000us = 30s
-  timerAlarmEnable(Timer0_Cfg);
+  //GPIO setup
+  for (int i = 0; i < 8; i++) {
+    pinMode(powerSensorPin[i], INPUT);
+    powerResults[i] = false;
+  }
+  for (int i = 0; i < 9; i++) {
+    pinMode(RelayPin[i], OUTPUT);
+    digitalWrite(RelayPin[i], LOW);
+  }
 
   // setup serial
   debugStart(115200);
@@ -82,17 +78,6 @@ void setup() {
     stomper.beginSSL();
   } else {
     stomper.begin();
-  }
-
-
-  //GPIO setup
-  for (int i = 0; i < 8; i++) {
-    pinMode(powerSensorPin[i], INPUT_PULLDOWN);
-    powerResults[i] = false;
-  }
-  for (int i = 0; i < 9; i++) {
-    pinMode(RelayPin[i], OUTPUT);
-    digitalWrite(RelayPin[i], LOW);
   }
 
 }
@@ -130,7 +115,6 @@ void loop() {
     keepAlive = millis();
   }
 
-  bootFlag = false;
   
   if(millis() >= sendtimeing + 250){
 
