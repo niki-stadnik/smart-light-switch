@@ -88,6 +88,7 @@ void setup() {
 void subscribe(Stomp::StompCommand cmd) {
   debugln("Connected to STOMP broker");
   stomper.subscribe("/topic/lightSwitch", Stomp::CLIENT, handleMessage);    //this is the @MessageMapping("/test") anotation so /topic must be added
+  stomper.subscribe("/topic/rebootDoorman", Stomp::CLIENT, handleRebootDev);
   stomper.subscribe("/topic/keepAlive", Stomp::CLIENT, handleKeepAlive);
 }
 
@@ -95,6 +96,12 @@ Stomp::Stomp_Ack_t handleMessage(const Stomp::StompCommand cmd) {
   debugln(cmd.body);
   keepAlive = millis();
   getData(cmd.body);
+  return Stomp::CONTINUE;
+}
+Stomp::Stomp_Ack_t handleRebootDev(const Stomp::StompCommand cmd) {
+  debugln(cmd.body);
+  keepAlive = millis();
+  rebootDev();
   return Stomp::CONTINUE;
 }
 Stomp::Stomp_Ack_t handleKeepAlive(const Stomp::StompCommand cmd) {
@@ -154,7 +161,7 @@ void sendData(){
 void getData(String input){
   SudoJSON json = SudoJSON(input);
 
-  boolean pulse[9];
+  boolean pulse[8];
   pulse[0] = json.getPairB("pulse0");
   pulse[1] = json.getPairB("pulse1");
   pulse[2] = json.getPairB("pulse2");
@@ -163,7 +170,6 @@ void getData(String input){
   pulse[5] = json.getPairB("pulse5");
   pulse[6] = json.getPairB("pulse6");
   pulse[7] = json.getPairB("pulse7");
-  pulse[8] = json.getPairB("pulse8"); //restart pulse
 
   //atm turns all the lights in sequence not at the same time (cool effect?) 
   for (int i = 0; i < 8; i++){
@@ -173,12 +179,10 @@ void getData(String input){
       digitalWrite(RelayPin[i], LOW);
     }
   }
+}
 
-  //restarts the other ESP32
-  if (pulse[8] == true){
-    digitalWrite(RelayPin[8], HIGH);
-    delay(2000);
-    digitalWrite(RelayPin[8], LOW);
-  }
-
+void rebootDev(){
+  digitalWrite(RelayPin[8], HIGH);
+  delay(2000);
+  digitalWrite(RelayPin[8], LOW);
 }
