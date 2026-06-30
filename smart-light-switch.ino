@@ -3,6 +3,9 @@
 #include "WebSocketsClient.h"
 #include "StompClient.h"
 #include "SudoJSON.h"
+#include <ArduinoOTA.h>
+
+#define NAME "smart-light-switch"
 
 //debug
 #define DEBUG 0 //1 = debug messages ON; 0 = debug messages OFF
@@ -72,6 +75,27 @@ void setup() {
   }
   debugln(" success.");
   debug("IP: "); debugln(WiFi.localIP());
+
+  //OTA upload
+  ArduinoOTA.setHostname(NAME); // shows up with this name
+  ArduinoOTA.setPassword("admin"); // optional security
+  ArduinoOTA.onStart([]() {
+    debugln("OTA update starting...");
+  });
+  ArduinoOTA.onEnd([]() {
+    debugln("\nOTA update complete!");
+  });
+  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
+    debugln("Progress: " + (progress / (total / 100)));
+  });
+  ArduinoOTA.onError([](ota_error_t error) {
+    debugln("Error" + error);
+  });
+
+  ArduinoOTA.begin();
+  debugln("OTA ready");
+
+
   stomper.onConnect(subscribe);
   stomper.onError(error);
 
@@ -126,6 +150,9 @@ void error(const Stomp::StompCommand cmd) {
 
 
 void loop() {
+  webSocket.loop();
+  ArduinoOTA.handle();
+
   if(millis() >= keepAlive + 60000){  //if no messages are recieved in 1min - restart esp
     ESP.restart();
     keepAlive = millis();
@@ -133,19 +160,15 @@ void loop() {
 
   
   if(millis() >= sendtimeing + 250){
-
     sendData();
-
     sendtimeing = millis();
   }
-
-  webSocket.loop();
 }
 
 
 void sendData(){
 
-  for (int i=0; i<8; i++){
+  for (int i=0; i<7; i++){
     debug("Status: ");
     debug(i);
     debug(" : ");
@@ -162,7 +185,6 @@ void sendData(){
   json.addPair("light4", powerResults[4]);
   json.addPair("light5", powerResults[5]);
   json.addPair("light6", powerResults[6]);
-  json.addPair("light7", powerResults[7]);
   // Send the message to the STOMP server
   stomper.sendMessage("/app/device/lightSwitch", json.retrive());   //this is the @SendTo anotation
 }
@@ -178,10 +200,9 @@ void getData(String input){
   pulse[4] = json.getPairB("pulse4");
   pulse[5] = json.getPairB("pulse5");
   pulse[6] = json.getPairB("pulse6");
-  pulse[7] = json.getPairB("pulse7");
 
   //atm turns all the lights in sequence not at the same time (cool effect?) 
-  for (int i = 0; i < 8; i++){
+  for (int i = 0; i < 7; i++){
     if(pulse[i]){
       digitalWrite(RelayPin[i], HIGH);
       delay(200);
@@ -191,7 +212,9 @@ void getData(String input){
 }
 
 void rebootDev(){
+  digitalWrite(RelayPin[7], HIGH);
   digitalWrite(RelayPin[8], HIGH);
   delay(2000);
   digitalWrite(RelayPin[8], LOW);
+  digitalWrite(RelayPin[7], LOW);
 }
